@@ -1,0 +1,45 @@
+{% extends 'catalog/base.html' %}
+
+{% block title %}Блог - Skystore{% endblock %}
+
+{% block content %}
+<div class="container mt-5">
+    <div class="row mb-4">
+        <div class="col">
+            <h1>Блог</h1>
+            <a href="{% url 'blog:blog_create' %}" class="btn btn-primary">Создать новую запись</a>
+        </div>
+    </div>
+    
+    <div class="row">
+        {% for post in posts %}
+        <div class="col-md-4 mb-4">
+            <div class="card h-100">
+                {% if post.preview %}
+                <img src="{{ post.preview.url }}" class="card-img-top" alt="{{ post.title }}" style="height: 200px; object-fit: cover;">
+                {% else %}
+                <div class="bg-light text-center p-5" style="height: 200px;">
+                    <p class="text-muted">Нет изображения</p>
+                </div>
+                {% endif %}
+                <div class="card-body">
+                    <h5 class="card-title">{{ post.title }}</h5>
+                    <p class="card-text">{{ post.content|truncatechars:150 }}</p>
+                    <p class="text-muted small">
+                        <span>Просмотров: {{ post.views_count }}</span>
+                        <span class="ms-3">Создано: {{ post.created_at|date:"d.m.Y" }}</span>
+                    </p>
+                </div>
+                <div class="card-footer">
+                    <a href="{% url 'blog:blog_detail' post.pk %}" class="btn btn-primary btn-sm">Читать далее</a>
+                </div>
+            </div>
+        </div>
+        {% empty %}
+        <div class="col">
+            <p class="text-center">Статей пока нет.</p>
+        </div>
+        {% endfor %}
+    </div>
+</div>
+{% endblock %}

@@ -1,0 +1,58 @@
+{% extends 'catalog/base.html' %}
+
+{% block title %}
+{% if object %}
+Редактирование: {{ object.title }} - Skystore
+{% else %}
+Создание новой записи - Skystore
+{% endif %}
+{% endblock %}
+
+{% block content %}
+<div class="container mt-5">
+    <div class="row">
+        <div class="col-lg-8 mx-auto">
+            <h1>
+                {% if object %}
+                Редактирование: {{ object.title }}
+                {% else %}
+                Создание новой записи
+                {% endif %}
+            </h1>
+            
+            <form method="post" enctype="multipart/form-data">
+                {% csrf_token %}
+                
+                {% for field in form %}
+                <div class="mb-3">
+                    <label for="{{ field.id_for_label }}" class="form-label">{{ field.label }}</label>
+                    {{ field }}
+                    {% if field.errors %}
+                    <div class="text-danger">
+                        {{ field.errors }}
+                    </div>
+                    {% endif %}
+                </div>
+                {% endfor %}
+                
+                <div class="mt-4">
+                    <button type="submit" class="btn btn-primary">Сохранить</button>
+                    <a href="{% url 'blog:blog_list' %}" class="btn btn-secondary">Отмена</a>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
+<style>
+    input, textarea, select {
+        width: 100%;
+        padding: 8px;
+        border: 1px solid #ddd;
+        border-radius: 4px;
+    }
+    textarea {
+        min-height: 200px;
+    }
+</style>
+{% endblock %}

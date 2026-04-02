@@ -1,0 +1,48 @@
+{% extends 'catalog/base.html' %}
+
+{% block title %}Удаление продукта - Skystore{% endblock %}
+
+{% block content %}
+<div class="container mt-5">
+    <div class="row">
+        <div class="col-lg-6 mx-auto">
+            <div class="card shadow">
+                <div class="card-header bg-danger text-white">
+                    <h3 class="mb-0">Подтверждение удаления</h3>
+                </div>
+                <div class="card-body">
+                    <p class="lead">Вы уверены, что хотите удалить продукт <strong>"{{ object.name }}"</strong>?</p>
+                    <p class="text-muted">Это действие нельзя отменить. Все данные о продукте будут потеряны.</p>
+                    
+                    {% if object.image %}
+                    <div class="text-center mb-3">
+                        <img src="{{ object.image.url }}" alt="{{ object.name }}" class="img-fluid rounded" style="max-height: 150px;">
+                    </div>
+                    {% endif %}
+                    
+                    <div class="alert alert-warning">
+                        <strong>Информация о продукте:</strong>
+                        <ul class="mb-0 mt-2">
+                            <li>Категория: {{ object.category.name }}</li>
+                            <li>Цена: {{ object.price }} ₽</li>
+                            <li>Создан: {{ object.created_at|date:"d.m.Y" }}</li>
+                        </ul>
+                    </div>
+                    
+                    <form method="post" class="mt-4">
+                        {% csrf_token %}
+                        <div class="d-flex justify-content-between">
+                            <a href="{% url 'catalog:product_detail' object.pk %}" class="btn btn-secondary">
+                                Отмена
+                            </a>
+                            <button type="submit" class="btn btn-danger">
+                                Да, удалить
+                            </button>
+                        </div>
+                    </form>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

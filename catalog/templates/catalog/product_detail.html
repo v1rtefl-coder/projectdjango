@@ -27,6 +27,13 @@
             <div class="mt-4">
                 <button class="btn btn-primary btn-lg">Добавить в корзину</button>
                 <a href="{% url 'catalog:home' %}" class="btn btn-secondary btn-lg">На главную</a>
+
+                {% if user.is_authenticated %}
+                <div class="mt-3">
+                   <a href="{% url 'catalog:product_update' product.pk %}" class="btn btn-warning">Редактировать</a>
+                    <a href="{% url 'catalog:product_delete' product.pk %}" class="btn btn-danger">Удалить</a>
+                </div>
+                {% endif %}
             </div>
             <div class="mt-4 text-muted small">
                 <p>Создано: {{ product.created_at|date:"d.m.Y" }}</p>

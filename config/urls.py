@@ -6,7 +6,8 @@ from django.conf.urls.static import static
 urlpatterns = [
     path('admin/', admin.site.urls),
     path('', include('catalog.urls')),
-    path('blogs/', include('blog.urls')),  # Все URL блога начинаются с blogs/
+    path('blogs/', include('blog.urls')),
+    path('users/', include('users.urls')),  # добавляем URL-ы пользователей
 ]
 
 if settings.DEBUG:

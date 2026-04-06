@@ -2,26 +2,56 @@ from django.views.generic import ListView, DetailView, CreateView, UpdateView, D
 from django.urls import reverse_lazy
 from django.contrib.auth.mixins import LoginRequiredMixin, UserPassesTestMixin
 from django.contrib import messages
-from django.shortcuts import get_object_or_404, redirect
+from django.shortcuts import get_object_or_404
 from django.http import HttpResponse, Http404
 from django.core.exceptions import PermissionDenied
+from django.core.cache import cache
+from django.utils.decorators import method_decorator
+from django.views.decorators.cache import cache_page
+from django.views.decorators.vary import vary_on_headers, vary_on_cookie
+from django.conf import settings
 from .models import Product, Category
 from .forms import ProductForm
 
 
 class HomeView(ListView):
-    """Контроллер для главной страницы (общедоступный)"""
+    """Контроллер для главной страницы с низкоуровневым кешированием"""
     model = Product
     template_name = 'catalog/home.html'
     context_object_name = 'products'
+    paginate_by = 9
 
     def get_queryset(self):
-        """Показываем только опубликованные продукты"""
-        return Product.objects.filter(is_published=True)
+        """Получаем продукты с низкоуровневым кешированием"""
+        from .services import get_all_categories
+
+        # Ключ для кеша
+        cache_key = 'home_products_page_{}'.format(self.request.GET.get('page', 1))
+
+        # Пытаемся получить из кеша
+        cached_products = cache.get(cache_key)
+
+        if cached_products is not None and settings.CACHE_ENABLED:
+            return cached_products
+
+        # Получаем из БД
+        products = Product.objects.filter(is_published=True).select_related('category', 'owner')
+
+        # Сохраняем в кеш
+        if settings.CACHE_ENABLED:
+            cache.set(cache_key, products, 60 * 5)  # 5 минут
+
+        return products
+
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        from .services import get_all_categories
+        context['categories'] = get_all_categories()
+        return context
 
 
 class ProductDetailView(DetailView):
-    """Контроллер для страницы одного товара (общедоступный)"""
+    """Контроллер для страницы одного товара с кешированием"""
     model = Product
     template_name = 'catalog/product_detail.html'
     context_object_name = 'product'
@@ -29,9 +59,35 @@ class ProductDetailView(DetailView):
     def get_queryset(self):
         """Показываем опубликованные продукты или разрешаем доступ владельцу/модератору"""
         user = self.request.user
-        if user.is_authenticated and (user.has_perm('catalog.can_unpublish_product') or user == product.owner):
+        if user.is_authenticated and user.has_perm('catalog.can_unpublish_product'):
             return Product.objects.all()
         return Product.objects.filter(is_published=True)
+
+    @method_decorator(cache_page(60 * 15))  # Кешируем на 15 минут
+    @method_decorator(vary_on_headers('Cookie'))  # Учитываем cookies
+    def dispatch(self, *args, **kwargs):
+        return super().dispatch(*args, **kwargs)
+
+    def get_object(self, queryset=None):
+        """Получаем объект с проверкой кеша"""
+        pk = self.kwargs.get('pk')
+        cache_key = f'product_detail_{pk}'
+
+        # Пытаемся получить из кеша
+        cached_product = cache.get(cache_key)
+
+        if cached_product is not None and not self.request.user.is_authenticated:
+            # Для неавторизованных пользователей возвращаем из кеша
+            return cached_product
+
+        # Получаем объект из БД
+        product = super().get_object(queryset)
+
+        # Кешируем для неавторизованных пользователей
+        if not self.request.user.is_authenticated:
+            cache.set(cache_key, product, 60 * 15)  # 15 минут
+
+        return product
 
 
 class ProductCreateView(LoginRequiredMixin, CreateView):
@@ -43,11 +99,17 @@ class ProductCreateView(LoginRequiredMixin, CreateView):
     login_url = '/users/login/'
 
     def form_valid(self, form):
-        """Автоматически привязываем продукт к текущему пользователю"""
         form.instance.owner = self.request.user
-        form.instance.is_published = False  # Новые продукты не публикуются автоматически
-        messages.success(self.request, 'Продукт успешно создан! Он будет опубликован после проверки модератором.')
-        return super().form_valid(form)
+        form.instance.is_published = False
+        response = super().form_valid(form)
+
+        # Инвалидируем кеш категорий и главной страницы
+        from .services import invalidate_product_cache
+        invalidate_product_cache(category_id=form.instance.category_id)
+        cache.delete_pattern('home_products_page_*')
+
+        messages.success(self.request, 'Продукт успешно создан!')
+        return response
 
     def form_invalid(self, form):
         messages.error(self.request, 'Пожалуйста, исправьте ошибки в форме.')
@@ -77,8 +139,17 @@ class ProductUpdateView(LoginRequiredMixin, UserPassesTestMixin, UpdateView):
         return reverse_lazy('catalog:product_detail', kwargs={'pk': self.object.pk})
 
     def form_valid(self, form):
+        old_category_id = self.get_object().category_id
+        response = super().form_valid(form)
+
+        # Инвалидируем кеш
+        from .services import invalidate_product_cache
+        invalidate_product_cache(product_id=self.object.pk, category_id=old_category_id)
+        invalidate_product_cache(category_id=self.object.category_id)
+        cache.delete_pattern('home_products_page_*')
+
         messages.success(self.request, 'Продукт успешно обновлен!')
-        return super().form_valid(form)
+        return response
 
     def form_invalid(self, form):
         messages.error(self.request, 'Пожалуйста, исправьте ошибки в форме.')
@@ -114,6 +185,13 @@ class ProductDeleteView(LoginRequiredMixin, UserPassesTestMixin, DeleteView):
         return super().handle_no_permission()
 
     def delete(self, request, *args, **kwargs):
+        product = self.get_object()
+        category_id = product.category_id
+
+        from .services import invalidate_product_cache
+        invalidate_product_cache(product_id=product.pk, category_id=category_id)
+        cache.delete_pattern('home_products_page_*')
+
         messages.success(self.request, 'Продукт успешно удален!')
         return super().delete(request, *args, **kwargs)
 
@@ -148,3 +226,24 @@ class ContactsView(TemplateView):
         print(f'Получено сообщение от {name}: {message}, тел: {phone}')
         return HttpResponse('Спасибо за ваше сообщение!')
 
+
+class CategoryProductsView(ListView):
+    """Контроллер для отображения продуктов в указанной категории"""
+    model = Product
+    template_name = 'catalog/category_products.html'
+    context_object_name = 'products'
+    paginate_by = 12
+
+    def get_queryset(self):
+        """Получаем продукты в категории через сервисную функцию"""
+        from .services import get_products_by_category
+        category_id = self.kwargs.get('category_id')
+        return get_products_by_category(category_id, use_cache=True)
+
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        from .services import get_all_categories
+        category_id = self.kwargs.get('category_id')
+        context['current_category'] = get_object_or_404(Category, id=category_id)
+        context['categories'] = get_all_categories()
+        return context

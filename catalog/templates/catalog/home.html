@@ -14,35 +14,63 @@
 </div>
 
 <div class="container">
-    <div class="row text-center">
+    <div class="row">
         {% for product in products %}
-        <div class="col-3 mb-4">
-            <div class="card mb-4 box-shadow h-100">
-                <div class="card-header">
-                    <h4 class="my-0 font-weight-normal">{{ product.name }}</h4>
+        <div class="col-md-4 mb-4">
+            <div class="card h-100">
+                {% if product.image %}
+                <img src="{{ product.image.url }}" class="card-img-top" alt="{{ product.name }}" style="height: 200px; object-fit: cover;">
+                {% else %}
+                <div class="bg-light text-center p-5" style="height: 200px;">
+                    <p class="text-muted">Нет изображения</p>
                 </div>
+                {% endif %}
                 <div class="card-body">
-                    {% if product.image %}
-                    <img src="{{ product.image.url }}" class="img-fluid mb-3" alt="{{ product.name }}" style="height: 150px; object-fit: cover;">
-                    {% else %}
-                    <div class="bg-light mb-3" style="height: 150px; display: flex; align-items: center; justify-content: center;">
-                        <small class="text-muted">Нет фото</small>
-                    </div>
-                    {% endif %}
-                    <p class="card-text text-start">
-                        {{ product.description|default:"Описание отсутствует"|truncatechars:100 }}
+                    <h5 class="card-title">{{ product.name }}</h5>
+                    <p class="card-text">{{ product.description|default:"Описание отсутствует"|truncatechars:100 }}</p>
+                    <p class="text-muted small">
+                        Категория: {{ product.category.name }}
                     </p>
-                    <h5 class="card-title pricing-card-title text-primary">{{ product.price }} ₽</h5>
-                    <a href="{% url 'catalog:product_detail' product.pk %}" class="btn btn-lg btn-block btn-outline-primary mt-3">Подробнее</a>
+                    <h6 class="text-primary">{{ product.price }} ₽</h6>
+                </div>
+                <div class="card-footer bg-transparent">
+                    <a href="{% url 'catalog:product_detail' product.pk %}" class="btn btn-outline-primary btn-sm w-100">Подробнее</a>
                 </div>
             </div>
         </div>
         {% empty %}
         <div class="col-12">
-            <p class="text-center">Товары пока не добавлены.</p>
+            <div class="alert alert-info text-center">
+                Товары пока не добавлены.
+            </div>
         </div>
         {% endfor %}
     </div>
+
+    <!-- Пагинация -->
+    {% if is_paginated %}
+    <nav aria-label="Page navigation" class="mt-4">
+        <ul class="pagination justify-content-center">
+            {% if page_obj.has_previous %}
+            <li class="page-item">
+                <a class="page-link" href="?page={{ page_obj.previous_page_number }}">← Предыдущая</a>
+            </li>
+            {% endif %}
+
+            {% for num in page_obj.paginator.page_range %}
+            <li class="page-item {% if page_obj.number == num %}active{% endif %}">
+                <a class="page-link" href="?page={{ num }}">{{ num }}</a>
+            </li>
+            {% endfor %}
+
+            {% if page_obj.has_next %}
+            <li class="page-item">
+                <a class="page-link" href="?page={{ page_obj.next_page_number }}">Следующая →</a>
+            </li>
+            {% endif %}
+        </ul>
+    </nav>
+    {% endif %}
 </div>
 {% endblock %}
 

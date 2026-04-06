@@ -5,7 +5,6 @@ from .models import Product
 class ProductForm(forms.ModelForm):
     """Форма для создания и редактирования продукта"""
 
-    # Список запрещенных слов
     FORBIDDEN_WORDS = [
         'казино', 'криптовалюта', 'крипта', 'биржа',
         'дешево', 'бесплатно', 'обман', 'полиция', 'радар'
@@ -13,13 +12,14 @@ class ProductForm(forms.ModelForm):
 
     class Meta:
         model = Product
-        fields = ['name', 'description', 'image', 'category', 'price']
+        fields = ['name', 'description', 'image', 'category', 'price', 'is_published']
         labels = {
             'name': 'Наименование',
             'description': 'Описание',
             'image': 'Изображение',
             'category': 'Категория',
             'price': 'Цена (₽)',
+            'is_published': 'Опубликован',
         }
 
     def clean_name(self):

@@ -1,4 +1,7 @@
 from django.db import models
+from django.contrib.auth import get_user_model
+
+User = get_user_model()
 
 # Create your models here.
 class Category(models.Model):
@@ -58,10 +61,26 @@ class Product(models.Model):
         verbose_name="Дата последнего изменения"
     )
 
+    is_published = models.BooleanField(
+        default=False,
+        verbose_name="Опубликован"
+    )
+    owner = models.ForeignKey(
+        User,
+        on_delete=models.CASCADE,
+        related_name='products',
+        verbose_name="Владелец",
+        blank=True,
+        null=True
+    )
+
     class Meta:
         verbose_name = "Продукт"
         verbose_name_plural = "Продукты"
         ordering = ['-created_at']
+        permissions = [
+            ('can_unpublish_product', 'Может отменять публикацию продукта'),
+        ]
 
     def __str__(self):
         return self.name
